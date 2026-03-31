@@ -1,0 +1,56 @@
+import network
+import socket
+import time
+from machine import Pin, PWM
+in1 = Pin(14, Pin.OUT); in2 = Pin(15, Pin.OUT); ena = PWM(Pin(13))
+in3 = Pin(16, Pin.OUT); in4 = Pin(17, Pin.OUT); enb = PWM(Pin(18))
+ena.freq(1000); enb.freq(1000)
+def set_motors(l1, l2, r1, r2, speed=40000):
+    in1.value(l1); in2.value(l2); ena.duty_u16(speed)
+    in3.value(r1); in4.value(r2); enb.duty_u16(speed)
+ap = network.WLAN(network.AP_IF)
+ap.config(essid='PRIME_6x6', password='password123')
+ap.active(True)
+while not ap.active():
+    pass
+print('WiFi Active. Connect to "PRIME_6x6"')
+print('IP Address:', ap.ifconfig()[0])
+html = """<!DOCTYPE html>
+<html>
+<head> <title>PRIME Control</title> 
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+    body { background: #0f0f0f; color: #00ffcc; font-family: sans-serif; text-align: center; }
+    .btn { background: #1a1a1a; color: #00ffcc; border: 2px solid #00ffcc; padding: 20px 40px; 
+           margin: 10px; font-size: 20px; border-radius: 10px; width: 80%; cursor: pointer; }
+</style>
+</head>
+<body>
+    <h1>PRIME 6x6 COMMAND</h1>
+    <a href="/forward"><button class="btn">FORWARD</button></a><br>
+    <a href="/left"><button class="btn">LEFT</button></a>
+    <a href="/right"><button class="btn">RIGHT</button></a><br>
+    <a href="/backward"><button class="btn">BACKWARD</button></a><br>
+    <a href="/stop"><button class="btn" style="border-color:red; color:red;">STOP</button></a>
+</body>
+</html>
+"""
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(('', 80))
+s.listen(5)
+
+try:
+    while True:
+        conn, addr = s.accept()
+        request = str(conn.recv(1024))
+        
+        if '/forward' in request: set_motors(1,0,1,0)
+        elif '/backward' in request: set_motors(0,1,0,1)
+        elif '/left' in request: set_motors(0,1,1,0)
+        elif '/right' in request: set_motors(1,0,0,1)
+        elif '/stop' in request: set_motors(0,0,0,0,0)
+        
+        conn.send('HTTP/1.1 200 OK\nContent-Type: text/html\n\n' + html)
+        conn.close()
+except:
+    s.close()
